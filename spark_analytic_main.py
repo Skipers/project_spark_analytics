@@ -23,7 +23,6 @@ def extract_postgres_table(driver_path, tables_list, file_type, url, user_name, 
     
     return dataframes
 
-# Вызов функции 
 dataframes = extract_postgres_table(
     "/home/vboxuser/Documents/GitHub/project_spark_analytics/postgresql-42.7.3.jar",
     ['film', 'category', 'film_category', 'film_actor', 'actor', 'rental', 'inventory', 'customer', 'address', 'city'],
@@ -33,37 +32,71 @@ dataframes = extract_postgres_table(
     '123456'
 )
 
+def joins_tables(dataframes, tables_to_join: list):
+    if not tables_to_join:
+        raise ValueError("Список таблиц для объединения не может быть пустым")
 
-def join_tables(dataframes, join_conditions, join_to_result_table=None):
-    if not join_conditions:
-        raise ValueError("join_conditions не может быть пустым")
+    # Начинаем с первого DataFrame
+    result_df = dataframes[tables_to_join[0]]
 
-    # Присоединение первой таблицы
-    left_table_name, right_table_name, on_condition, join_type, drop_id = join_conditions[0]
-    joined_df = dataframes[left_table_name].join(dataframes[right_table_name], on_condition, join_type) \
-        .drop(drop_id)
+    for table_name in tables_to_join[1:]:
+        if table_name not in dataframes:
+            raise ValueError(f"DataFrame для таблицы '{table_name}' не найден")
 
-    # Проходим по оставшимся условиям соединения
-    for left_table_name, right_table_name, on_condition, join_type, drop_id in join_conditions[1:]:
-        right_df = dataframes[right_table_name]
-        joined_df = joined_df.join(right_df, on_condition, join_type) \
-            .drop(drop_id)
+        df = dataframes[table_name]
 
-    # Присоединение дополнительных таблиц к результирующей таблицы
-    if join_to_result_table:
-        for second_table_name, on_condition, join_type, drop_id in join_to_result_table:
-            right_df = dataframes[second_table_name]
-            joined_df = joined_df.join(right_df, on_condition, join_type) \
-                .drop(drop_id)
+        # Находим столбцы с 'id' в названии
+        id_columns_result = [col for col in result_df.columns if 'id' in col.lower()]
+        id_columns_df = [col for col in df.columns if 'id' in col.lower()]
 
-    return joined_df
+        # Находим общие столбцы, содержащие 'id'
+        common_id_columns = set(id_columns_result) & set(id_columns_df)
+        
+        if common_id_columns:
+            join_columns = list(common_id_columns)
+            # Объединяем таблицы
+            result_df = result_df.join(df, on=join_columns, how='left')
+        else:
+            print(f"Нет общих столбцов с 'id' для объединения таблицы '{table_name}' с результатом")
+
+    return result_df
+
+tables_to_join = ['customer','rental','address','city','inventory','film','film_category','category']
+
+result = joins_tables(dataframes, tables_to_join)
 
 
-# Вызов функции
-result_df = join_tables(dataframes, [
-    ('film_category', 'film', dataframes['film_category'].film_id == dataframes['film'].film_id, 'left', dataframes['film'].film_id),
-    ('film_category', 'category', dataframes['film_category'].category_id == dataframes['category'].category_id, 'left', dataframes['category'].category_id)], [
-    ('film_actor', dataframes['film_category'].film_id == dataframes['film_actor'].film_id, 'left', dataframes['film_actor'].film_id),
-    ('actor', dataframes['film_actor'].actor_id == dataframes['actor'].actor_id, 'left', dataframes['actor'].actor_id)])
 
-result_df.show(vertical=True)
+task_2 = result.groupBy('last_name').agg(F.count('rental_duration'))
+
+task_4 = result.groupBy("first_name", "last_name").agg(F.count("film_id").alias("film_count")) \
+    .orderBy(F.desc("film_count"))
+
+task_5 = result.groupBy("city") \
+    .agg(
+        F.sum(F.when(F.col("active") == 1, 1).otherwise(0)).alias("active_count"),
+        F.sum(F.when(F.col("active") == 0, 1).otherwise(0)).alias("inactive_count")
+    ) \
+    .orderBy(F.desc("inactive_count"))
+
+
+task_6 = result \
+    .filter(F.lower(F.col("city")).startswith("a")) \
+    .groupBy("name") \
+    .agg(F.sum("rental_duration").alias("total_hours")) \
+    .orderBy(F.desc("total_hours")) \
+    .limit(1)
+
+
+task_7 = result \
+    .filter(F.col("city").contains("-")) \
+    .groupBy("name") \
+    .agg(F.sum("rental_duration").alias("total_hours")) \
+    .orderBy(F.desc("total_hours")) \
+    .limit(1)
+
+tasks_complit = [task_2,task_4,task_5,task_6,task_6,task_7]
+
+
+for i in tasks_complit:
+    i.show(vertical= True)

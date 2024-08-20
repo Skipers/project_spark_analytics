@@ -36,7 +36,7 @@ def joins_tables(dataframes, tables_to_join: list):
     if not tables_to_join:
         raise ValueError("Список таблиц для объединения не может быть пустым")
 
-    # Начинаем с первого DataFrame
+   
     result_df = dataframes[tables_to_join[0]]
 
     for table_name in tables_to_join[1:]:
@@ -45,16 +45,16 @@ def joins_tables(dataframes, tables_to_join: list):
 
         df = dataframes[table_name]
 
-        # Находим столбцы с 'id' в названии
+        
         id_columns_result = [col for col in result_df.columns if 'id' in col.lower()]
         id_columns_df = [col for col in df.columns if 'id' in col.lower()]
 
-        # Находим общие столбцы, содержащие 'id'
+        
         common_id_columns = set(id_columns_result) & set(id_columns_df)
         
         if common_id_columns:
             join_columns = list(common_id_columns)
-            # Объединяем таблицы
+           
             result_df = result_df.join(df, on=join_columns, how='left')
         else:
             print(f"Нет общих столбцов с 'id' для объединения таблицы '{table_name}' с результатом")
